@@ -1,2 +1,2 @@
-# EIT_Regularisasi
-Algoritma EIT menggunakan FEM Newton-Raphson dengan regularisasi Tikhonov
+# EIT
+Algoritma rekonstruksi EIT berbasis Finite Element Model
