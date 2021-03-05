@@ -21,8 +21,8 @@ H2=reshape([Element2.Topology],3,NElement2)';
 
 disp('Generating Finite Element Model.')
 Ind=ChooseCircle(Node2,Element2);       % Make data for an inhomogeneity.
-sigma=1/400*ones(NElement2,1);            % Make a conductivity vector.
-sigma(Ind)=1/200;			  % Conductivity of the inhomogeneity.
+sigma=1/3000*ones(NElement2,1);            % Make a conductivity vector.
+sigma(Ind)=1/300;			  % Conductivity of the inhomogeneity.
 % sigma = CreateInhomogeneities(Node2,Element2,7);
 
 % Eventually we'll want to get rid of Plotinvsol or rewrite it.
@@ -89,12 +89,13 @@ beta=step_length(2);
 delta_rho=rho-rho_init+alpha*J'*res+beta*(rho-rho_before);
 rho=rho_init+delta_rho;
 rho_before=rho;
+
 figure(5)
 clf,Plotinvsol(rho,g1,H1);colorbar,title(['Iterasi Landweber | Iter: ' num2str(num_iter) ' steps']);drawnow;
 
 disp('Iterations...')
 % I think the iterations just refine the guess
-while num_iter < 3
+while num_iter < 16
  %Calculate Jacobian (Sensitivity Matrix)
  J=Jacobian(Node2,Element2,Agrad1,Uref.Current,Uref.MeasField,rho,'real');
 rhobig=Ind2*rho;

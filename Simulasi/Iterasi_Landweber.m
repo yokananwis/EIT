@@ -37,10 +37,10 @@ rms = 800e-6;
 [II1,T]=Current(L,NNode2,'tri',rms);	  % Trigonometric current pattern.
 
 [Agrad,Kb,M,S,C]=FemMatrix(Node2,Element2,z);
-A=UpdateFemMatrix(Agrad,Kb,M,S,sigma);  % The system matrix.
+Sys_Mat=UpdateFemMatrix(Agrad,Kb,M,S,sigma);  % The system matrix.
 
 % This is ultimately what we want to plot:
-[U,p,r]=ForwardSolution(NNode2,NElement2,A,C,T,[],'real'); % Simulated data.
+[U,p,r]=ForwardSolution(NNode2,NElement2,Sys_Mat,C,T,[],'real'); % Simulated data.
 Uel=U.Electrode(:);
 
 Agrad1=Agrad*Ind2;   % Group some of the element for the inverse computations
@@ -51,44 +51,46 @@ Agrad1=Agrad*Ind2;   % Group some of the element for the inverse computations
 % Approximate the best homogenous resistivity.
 
 
-disp('Solves the full nonlinear inverse problem by regularised Gauss-Newton iteration.')
+disp('Solves the full nonlinear inverse problem by Landweber iteration.')
 
 disp('Initialisations...')
 
-A=UpdateFemMatrix(Agrad,Kb,M,S,ones(NElement2,1));  % The system matrix.
-Uref=ForwardSolution(NNode2,NElement2,A,C,T,[],'real',p,r);
+Sys_Mat=UpdateFemMatrix(Agrad,Kb,M,S,ones(NElement2,1));  % The system matrix.
+Uref=ForwardSolution(NNode2,NElement2,Sys_Mat,C,T,[],'real',p,r);
 
 rho0=Uref.Electrode(:)\U.Electrode(:);
 
-A=UpdateFemMatrix(Agrad,Kb,M,S,1./rho0*ones(size(sigma)));  % The system matrix.
-Uref=ForwardSolution(NNode2,NElement2,A,C,T,[],'real',p,r);
+Sys_Mat=UpdateFemMatrix(Agrad,Kb,M,S,1./rho0*ones(size(sigma)));  % The system matrix.
+Uref=ForwardSolution(NNode2,NElement2,Sys_Mat,C,T,[],'real',p,r);
 Urefel=Uref.Electrode(:);
 
 % initial resistivity distribution
 rho=rho0*ones(size(Agrad1,2),1);
 
-% number of iteration
-iter=4;
+% initial estimation
+J=Jacobian(Node2,Element2,Agrad1,Uref.Current,Uref.MeasField,rho,'real');
+max_eigen=eigs(J'*J,1);
+alpha=2/max_eigen;
+p_norm=norm(alpha*(J'*J),2);
+num_iter=0;
 
 disp('Iterations...')
 % I think the iterations just refine the guess
-for ii=1:iter
- %Calculate Jacobian
+while p_norm >= 2
+ %Calculate Jacobian (Sensitivity Matrix)
  J=Jacobian(Node2,Element2,Agrad1,Uref.Current,Uref.MeasField,rho,'real');
  rhobig=Ind2*rho;
- A=UpdateFemMatrix(Agrad,Kb,M,S,1./rhobig);  % The system matrix.
- Uref=ForwardSolution(NNode2,NElement2,A,C,T,[],'real',p,r);
+ Sys_Mat=UpdateFemMatrix(Agrad,Kb,M,S,1./rhobig);  % The system matrix.
+ Uref=ForwardSolution(NNode2,NElement2,Sys_Mat,C,T,[],'real',p,r);
  Urefel=Uref.Electrode(:);
- Residuals=Uel-Urefel;
- svj = svd(J);
- %inv_J=pinv(J,svj(1)/20000);
- sq_J = J'*J;
- rank_sq_J = rank(sq_J);
- %inv_sq_J=pinv(J'*J);
- inv_sq_J = sq_J'/(sq_J'*sq_J);
- delta_params=inv_sq_J*J'*Residuals;
- rho=rho+delta_params;
+ max_eigen=eigs(J'*J,1);
+ alpha=2/max_eigen;
+ p_norm=norm(alpha*(J'*J),2);
+ rho=rho+alpha*J'*(Uel-Urefel);
+ %rho=rho+alpha*J'*(Uel-J*rho);
  
- figure(3)
- clf,Plotinvsol(rho,g1,H1);colorbar,title(['NR Pseudo Inverse Reconstruction | Iter: ' num2str(ii) ' steps']);drawnow;
+ % resistivity distribution plot
+ figure(5)
+ clf,Plotinvsol(rho,g1,H1);colorbar,title(['Iterasi Landweber | Iter: ' num2str(num_iter) ' steps']);drawnow;
+ num_iter = num_iter + 1;
 end

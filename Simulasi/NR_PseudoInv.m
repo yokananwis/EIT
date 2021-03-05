@@ -64,27 +64,71 @@ A=UpdateFemMatrix(Agrad,Kb,M,S,1./rho0*ones(size(sigma)));  % The system matrix.
 Uref=ForwardSolution(NNode2,NElement2,A,C,T,[],'real',p,r);
 Urefel=Uref.Electrode(:);
 
+% initial resistivity distribution
 rho=rho0*ones(size(Agrad1,2),1);
-J=Jacobian(Node2,Element2,Agrad1,Uref.Current,Uref.MeasField, ...
-           rho,'real');
 
-%Regularisation parameter and matrix
+%% First Iteration
+% number of iteration
+num_iter=0;
+J=Jacobian(Node2,Element2,Agrad1,Uref.Current,Uref.MeasField,rho,'real');
+rhobig=Ind2*rho;
+A=UpdateFemMatrix(Agrad,Kb,M,S,1./rhobig);  % The system matrix.
+Uref=ForwardSolution(NNode2,NElement2,A,C,T,[],'real',p,r);
+Urefel=Uref.Electrode(:);
+Residuals=Uel-Urefel;
+svj=svd(J);
+%inv_J=pinv(J,svj(1)/20000);
+sq_J=J'*J;
+rank_sq_J=rank(sq_J);
+%inv_sq_J=pinv(J'*J);
+inv_sq_J=sq_J'/(sq_J'*sq_J);
+%inv_sq_J=(sq_J'*sq_J)\(sq_J');
+delta_params=inv_sq_J*J'*Residuals;
+rho=rho+delta_params;
+num_iter=num_iter+1;
+Obj_F=0.5*(Urefel-Uel)'*(Urefel-Uel);
+rcond_Val = rcond(sq_J'*sq_J);
 
-lambda = 0.000000005; 
-R=MakeRegmatrix(Element1);
+figure(3)
+clf,Plotinvsol(rho,g1,H1);colorbar,title(['NR Pseudo Inverse Reconstruction | Iter: ' num2str(num_iter) ' steps']);drawnow;
 
-iter=5;
-
+%% Next Iterations
 disp('Iterations...')
 % I think the iterations just refine the guess
-for ii=1:iter
- %rho=rho+(J'*J+lambda*(R'*R))\(J'*(Uel-Urefel)-lambda*(R'*R)*rho);
- rho=rho+(J'*J+lambda*(R'*R))\(J'*(Uel-Urefel));
- rhobig=Ind2*rho;
- A=UpdateFemMatrix(Agrad,Kb,M,S,1./rhobig);  % The system matrix.
- Uref=ForwardSolution(NNode2,NElement2,A,C,T,[],'real',p,r);
- Urefel=Uref.Electrode(:);
- J=Jacobian(Node2,Element2,Agrad1,Uref.Current,Uref.MeasField,rho,'real');
- figure(2)
- clf,Plotinvsol(rho,g1,H1);colorbar,title(['NR Regularization Reconstruction | Iter: ' num2str(ii) ' steps']);drawnow;
+while Obj_F(num_iter)>0.0001
+%while num_iter < 5
+    %Calculate Jacobian
+    J=Jacobian(Node2,Element2,Agrad1,Uref.Current,Uref.MeasField,rho,'real');
+    rhobig=Ind2*rho;
+    A=UpdateFemMatrix(Agrad,Kb,M,S,1./rhobig);  % The system matrix.
+    Uref=ForwardSolution(NNode2,NElement2,A,C,T,[],'real',p,r);
+    Urefel=Uref.Electrode(:);
+    Residuals=Uel-Urefel;
+    svj = svd(J);
+    %inv_J=pinv(J,svj(1)/20000);
+    sq_J = J'*J;
+    rank_sq_J = rank(sq_J);
+    %inv_sq_J=pinv(J'*J);
+    inv_sq_J = sq_J'/(sq_J'*sq_J);
+    %inv_sq_J=(sq_J'*sq_J)\(sq_J');
+    delta_params=inv_sq_J*J'*Residuals;
+    rho=rho+delta_params;
+    num_iter=num_iter+1;
+    Obj_F=[Obj_F,0.5*(Urefel-Uel)'*(Urefel-Uel)];
+    rcond_Val=[rcond_Val,rcond(sq_J'*sq_J)];
+    if num_iter==3
+        rho_pinv=rho;
+    end    
+    figure(3)
+    clf,Plotinvsol(rho,g1,H1);colorbar,title(['NR Pseudo Inverse Reconstruction | Iter: ' num2str(num_iter) ' steps']);drawnow;
 end
+
+x = 1:1:numel(Obj_F);
+y = Obj_F;
+
+figure(9)
+clf,plot(x,y,'-o','MarkerIndices',1:numel(y));
+xticks(1:1:numel(Obj_F));
+title('Fungsi Objektif NR Inversi Semu');
+xlabel('Iterasi ke-');
+ylabel('Fungsi Objektif');

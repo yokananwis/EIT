@@ -37,10 +37,10 @@ rms = 800e-6;
 [II1,T]=Current(L,NNode2,'tri',rms);	  % Trigonometric current pattern.
 
 [Agrad,Kb,M,S,C]=FemMatrix(Node2,Element2,z);
-Sys_Mat=UpdateFemMatrix(Agrad,Kb,M,S,sigma);  % The system matrix.
+A=UpdateFemMatrix(Agrad,Kb,M,S,sigma);  % The system matrix.
 
 % This is ultimately what we want to plot:
-[U,p,r]=ForwardSolution(NNode2,NElement2,Sys_Mat,C,T,[],'real'); % Simulated data.
+[U,p,r]=ForwardSolution(NNode2,NElement2,A,C,T,[],'real'); % Simulated data.
 Uel=U.Electrode(:);
 
 Agrad1=Agrad*Ind2;   % Group some of the element for the inverse computations
@@ -55,53 +55,70 @@ disp('Solves the full nonlinear inverse problem by regularised Gauss-Newton iter
 
 disp('Initialisations...')
 
-Sys_Mat=UpdateFemMatrix(Agrad,Kb,M,S,ones(NElement2,1));  % The system matrix.
-Uref=ForwardSolution(NNode2,NElement2,Sys_Mat,C,T,[],'real',p,r);
+A=UpdateFemMatrix(Agrad,Kb,M,S,ones(NElement2,1));  % The system matrix.
+Uref=ForwardSolution(NNode2,NElement2,A,C,T,[],'real',p,r);
 
 rho0=Uref.Electrode(:)\U.Electrode(:);
 
-Sys_Mat=UpdateFemMatrix(Agrad,Kb,M,S,1./rho0*ones(size(sigma)));  % The system matrix.
-Uref=ForwardSolution(NNode2,NElement2,Sys_Mat,C,T,[],'real',p,r);
+A=UpdateFemMatrix(Agrad,Kb,M,S,1./rho0*ones(size(sigma)));  % The system matrix.
+Uref=ForwardSolution(NNode2,NElement2,A,C,T,[],'real',p,r);
+Urefel=Uref.Electrode(:);
 
 % initial resistivity distribution
 rho=rho0*ones(size(Agrad1,2),1);
-rho_init=rho;
 
-% initial estimation
-num_iter=1;
+%% First Iteration
+% number of iteration
+num_iter=0;
 J=Jacobian(Node2,Element2,Agrad1,Uref.Current,Uref.MeasField,rho,'real');
 rhobig=Ind2*rho;
-Sys_Mat=UpdateFemMatrix(Agrad,Kb,M,S,1./rhobig);  % The system matrix.
-Uref=ForwardSolution(NNode2,NElement2,Sys_Mat,C,T,[],'real',p,r);
-Urefel0=Uref.Electrode(:);
-max_eigen=eigs(J'*J,1);
-alpha=2/max_eigen;
-p_norm=norm(alpha*(J'*J),2);
-delta_V=Uel-Urefel0;
-res=delta_V-J*(rho-rho_init);
-delta_rho=rho-rho_init+alpha*J'*res;
-rho=rho_init+delta_rho;
-figure(5)
-clf,Plotinvsol(rho,g1,H1);colorbar,title(['Iterasi Landweber | Iter: ' num2str(num_iter) ' steps']);drawnow;
+A=UpdateFemMatrix(Agrad,Kb,M,S,1./rhobig);  % The system matrix.
+Uref=ForwardSolution(NNode2,NElement2,A,C,T,[],'real',p,r);
+Urefel=Uref.Electrode(:);
+Residuals=Uel-Urefel;
+[Uj,Sj,Vj] = svd(J'*J);
+J_back = Uj*Sj*Vj';
+Sj_inv = pinv(Sj);
+inv_sq_J = (Vj*Sj_inv)*Uj';
+delta_params=inv_sq_J*J'*Residuals;
+rho=rho+delta_params;
+num_iter=num_iter+1;
+Obj_F=0.5*(Urefel-Uel)'*(Urefel-Uel);
 
+figure(4)
+clf,Plotinvsol(rho,g1,H1);colorbar,title(['NR SVD | Iter: ' num2str(num_iter) ' steps']);drawnow;
+
+%% Next Iterations
 disp('Iterations...')
 % I think the iterations just refine the guess
-while num_iter < 16
- %Calculate Jacobian (Sensitivity Matrix)
- J=Jacobian(Node2,Element2,Agrad1,Uref.Current,Uref.MeasField,rho,'real');
- rhobig=Ind2*rho;
- Sys_Mat=UpdateFemMatrix(Agrad,Kb,M,S,1./rhobig);  % The system matrix.
- Uref=ForwardSolution(NNode2,NElement2,Sys_Mat,C,T,[],'real',p,r);
- Urefel=Uref.Electrode(:);
- max_eigen=eigs(J'*J,1);
- alpha=2/max_eigen;
- p_norm=norm(alpha*(J'*J),2);
- res=delta_V-J*(rho-rho_init);
- delta_rho=rho-rho_init+alpha*J'*res;
- rho=rho_init+delta_rho;
- 
- % resistivity distribution plot
- figure(5)
- clf,Plotinvsol(rho,g1,H1);colorbar,title(['Iterasi Landweber | Iter: ' num2str(num_iter) ' steps']);drawnow;
- num_iter = num_iter + 1;
+while Obj_F(num_iter)>0.0001
+    %Calculate Jacobian
+    J=Jacobian(Node2,Element2,Agrad1,Uref.Current,Uref.MeasField,rho,'real');
+    rhobig=Ind2*rho;
+    A=UpdateFemMatrix(Agrad,Kb,M,S,1./rhobig);  % The system matrix.
+    Uref=ForwardSolution(NNode2,NElement2,A,C,T,[],'real',p,r);
+    Urefel=Uref.Electrode(:);
+    Residuals=Uel-Urefel;
+    [Uj,Sj,Vj] = svd(J'*J);
+    J_back = Uj*Sj*Vj';
+    Sj_inv = pinv(Sj);
+    inv_sq_J = (Vj*Sj_inv)*Uj';
+    delta_params=inv_sq_J*J'*Residuals;
+    rho=rho+delta_params;
+    num_iter=num_iter+1;
+    Obj_F=[Obj_F,0.5*(Urefel-Uel)'*(Urefel-Uel)];
+    
+    figure(4)
+    clf,Plotinvsol(rho,g1,H1);colorbar,title(['NR SVD | Iter: ' num2str(num_iter) ' steps']);drawnow;
 end
+rho_svd=rho;
+
+x = 1:1:numel(Obj_F);
+y = Obj_F;
+
+figure(9)
+clf,plot(x,y,'-o','MarkerIndices',1:numel(y));
+xticks(1:1:numel(Obj_F));
+title('Fungsi Objektif NR SVD');
+xlabel('Iterasi ke-');
+ylabel('Fungsi Objektif');

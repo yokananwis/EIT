@@ -64,29 +64,54 @@ A=UpdateFemMatrix(Agrad,Kb,M,S,1./rho0*ones(size(sigma)));  % The system matrix.
 Uref=ForwardSolution(NNode2,NElement2,A,C,T,[],'real',p,r);
 Urefel=Uref.Electrode(:);
 
-% initial resistivity distribution
 rho=rho0*ones(size(Agrad1,2),1);
+J=Jacobian(Node2,Element2,Agrad1,Uref.Current,Uref.MeasField, ...
+    rho,'real');
 
-% number of iteration
-iter=1;
+%Regularisation parameter and matrix
+lambda = 1.0e-15;
+R=MakeRegmatrix(Element1);
 
+%% First Iteration
+num_iter=0;
+rho=rho+(J'*J+lambda*(R'*R))\(J'*(Uel-Urefel));
+rhobig=Ind2*rho;
+A=UpdateFemMatrix(Agrad,Kb,M,S,1./rhobig);  % The system matrix.
+Uref=ForwardSolution(NNode2,NElement2,A,C,T,[],'real',p,r);
+Urefel=Uref.Electrode(:);
+J=Jacobian(Node2,Element2,Agrad1,Uref.Current,Uref.MeasField,rho,'real');
+num_iter=num_iter+1;
+Obj_F=0.5*(Urefel-Uel)'*(Urefel-Uel);
+
+figure(2)
+clf,Plotinvsol(rho,g1,H1);colorbar,title(['NR Regularization Reconstruction | Iter: ' num2str(num_iter) ' steps']);drawnow;
+
+%% Next Iterations
 disp('Iterations...')
 % I think the iterations just refine the guess
-for ii=1:iter
- %Calculate Jacobian
- J=Jacobian(Node2,Element2,Agrad1,Uref.Current,Uref.MeasField,rho,'real');
- rhobig=Ind2*rho;
- A=UpdateFemMatrix(Agrad,Kb,M,S,1./rhobig);  % The system matrix.
- Uref=ForwardSolution(NNode2,NElement2,A,C,T,[],'real',p,r);
- Urefel=Uref.Electrode(:);
- Residuals=Uel-Urefel;
- [Uj,Sj,Vj] = svd(J'*J);
- J_back = Uj*Sj*Vj';
- Sj_inv = pinv(Sj);
- inv_sq_J = (Vj*Sj_inv)*Uj';
- delta_params=inv_sq_J*J'*Residuals;
- rho=rho+delta_params;
- 
- figure(4)
- clf,Plotinvsol(rho,g1,H1);colorbar,title(['NR SVD | Iter: ' num2str(ii) ' steps']);drawnow;
+while Obj_F(num_iter)>0.0001
+    %rho=rho+(J'*J+lambda*(R'*R))\(J'*(Uel-Urefel)-lambda*(R'*R)*rho);
+    lambda=lambda/10;
+    rho=rho+(J'*J+lambda*(R'*R))\(J'*(Uel-Urefel));
+    rhobig=Ind2*rho;
+    A=UpdateFemMatrix(Agrad,Kb,M,S,1./rhobig);  % The system matrix.
+    Uref=ForwardSolution(NNode2,NElement2,A,C,T,[],'real',p,r);
+    Urefel=Uref.Electrode(:);
+    J=Jacobian(Node2,Element2,Agrad1,Uref.Current,Uref.MeasField,rho,'real');
+    num_iter=num_iter+1;
+    Obj_F=[Obj_F,0.5*(Urefel-Uel)'*(Urefel-Uel)];
+    
+    figure(2)
+    clf,Plotinvsol(rho,g1,H1);colorbar,title(['NR Regularization Reconstruction | Iter: ' num2str(num_iter) ' steps']);drawnow;
 end
+rho_reg=rho;
+
+x = 1:1:numel(Obj_F);
+y = Obj_F;
+
+figure(9)
+clf,plot(x,y,'-o','MarkerIndices',1:numel(y));
+xticks(1:1:numel(Obj_F));
+title('Fungsi Objektif NR Regularisasi');
+xlabel('Iterasi ke-');
+ylabel('Fungsi Objektif');
