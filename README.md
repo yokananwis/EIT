@@ -22,8 +22,8 @@ Mesh generator menggunakan Netgen 6.1 yang memiliki requirement instalasi:
 2. Microsoft visual studio 2017 redistributable
 3. EIDORS telah di-running
 
-Lebih baik untuk melakukan instalasi Netgen pada directory EIDORS
-Dokumentasi fungsi-fungsi dalam Netgen http://eidors3d.sourceforge.net/doc/index.html?eidors/meshing/netgen/call_netgen.html
+Lebih baik untuk melakukan instalasi Netgen pada directory EIDORS;
+Dokumentasi fungsi-fungsi dalam Netgen http://eidors3d.sourceforge.net/doc/index.html?eidors/meshing/netgen/call_netgen.html;
 Contoh pembuatan mesh terdapat pada folder Netgen
 
 # Dokumentasi
