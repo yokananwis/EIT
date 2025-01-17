@@ -25,3 +25,7 @@ It is recommended to install Netgen in the EIDORS directory.
 Documentation for the functions in Netgen can be found at: http://eidors3d.sourceforge.net/doc/index.html?eidors/meshing/netgen/call_netgen.html.
 Examples of mesh creation are available in the Netgen folder.
 Netgen website: https://ngsolve.org/
+
+# Research Journal
+You can read my research journal about EIT in: 
+https://ieeexplore.ieee.org/document/9625673
