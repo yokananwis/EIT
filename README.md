@@ -12,7 +12,7 @@ This folder contains simulation programs for reconstruction using the Newton-Rap
 To try the simulations, copy the simulation files (except ChooseCircle.m) to the EIT-master\demo_complete directory.
 The ChooseCircle.m file has been updated to be compatible with Octave, which does not support defining the position and size of circles.
 
-# Program Rekonstruksi
+# Reconstruction Program
 This folder contains the EIT reconstruction program using real boundary voltage data from an Excel file.
 To try this EIT reconstruction program, copy the program files and the Excel data files to the EIT-master\demo_complete directory.
 
